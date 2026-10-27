@@ -1,0 +1,11 @@
+{
+  "name": "testdojo-challenge-checks",
+  "private": true,
+  "description": "Official checks for the TestDojo automation challenges.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}

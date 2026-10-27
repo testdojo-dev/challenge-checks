@@ -1,0 +1,5 @@
+node_modules/
+# Copied in from a learner's repo at run time.
+solutions/
+test-results/
+playwright-report/
