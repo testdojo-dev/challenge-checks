@@ -10,7 +10,7 @@ const CDP_PORT = Number(process.env.TESTDOJO_CDP_PORT || 9222);
 const BUILD_TIMEOUT_MS = 5 * 60_000;
 const RUN_TIMEOUT_MS = 3 * 60_000;
 
-type CommandResult = { code: number | null; timedOut: boolean; tail: string };
+type CommandResult = { code: number | null; timedOut: boolean; tail: string; output: string };
 
 const TAIL_LINES = 25;
 
@@ -51,7 +51,7 @@ function runCommand(command: string, cwd: string, timeoutMs: number): Promise<Co
     child.on('close', (code) => {
       clearTimeout(timer);
       const tail = output.trimEnd().split(/\r?\n/).slice(-TAIL_LINES).join('\n');
-      done({ code, timedOut, tail });
+      done({ code, timedOut, tail, output });
     });
   });
 }
@@ -60,7 +60,15 @@ function withOutput(message: string, tail: string): string {
   return tail ? `${message}\n\nLast lines of output:\n${tail}` : message;
 }
 
-export type Run = { context: BrowserContext; failure: string | null; close: () => Promise<void> };
+export type Run = {
+  context: BrowserContext;
+  failure: string | null;
+  /** Paths of the pages the program opened, in order, e.g. ["/flows/shop", "/flows/checkout"]. */
+  visited: string[];
+  /** Everything the program printed (the last 20,000 characters). */
+  output: string;
+  close: () => Promise<void>;
+};
 
 /**
  * Builds the learner's project, starts a browser, and runs their program
@@ -73,7 +81,7 @@ export async function runLearnerProgram(challenge: Challenge): Promise<Run> {
   if (!stack) throw new Error(`Unknown STACK "${process.env.STACK}". Expected one of: ${Object.keys(STACKS).join(', ')}`);
   const cwd = join(resolve(process.env.SOLUTION_DIR || '../learner'), stack.dir);
 
-  const build = await runCommand(stack.build, cwd, BUILD_TIMEOUT_MS);
+  const build = await runCommand(stack.build(challenge), cwd, BUILD_TIMEOUT_MS);
   if (build.code !== 0) {
     throw new Error(
       withOutput(build.timedOut ? 'Building your project took too long.' : 'Your project failed to build.', build.tail)
@@ -85,7 +93,9 @@ export async function runLearnerProgram(challenge: Challenge): Promise<Run> {
   // its own session skewed the page metrics and Selenium's clicks missed.)
   const chrome = await startChrome();
   try {
+    const journey = await recordJourney();
     const run = await runCommand(stack.run(challenge), cwd, RUN_TIMEOUT_MS);
+    journey.stop();
     let failure: string | null = null;
     if (run.timedOut) failure = withOutput('Your program was still running after 3 minutes, so it was stopped.', run.tail);
     else if (run.code !== 0) failure = withOutput('Your program exited with an error.', run.tail);
@@ -95,6 +105,8 @@ export async function runLearnerProgram(challenge: Challenge): Promise<Run> {
     return {
       context: browser.contexts()[0],
       failure,
+      visited: journey.visited,
+      output: run.output,
       close: async () => {
         await browser.close().catch(() => {});
         chrome.kill();
@@ -104,6 +116,38 @@ export async function runLearnerProgram(challenge: Challenge): Promise<Run> {
     chrome.kill();
     throw error;
   }
+}
+
+/**
+ * Notes every page the browser lands on while the learner's program runs, so a
+ * check can confirm it really went through the pages a challenge requires.
+ * Listens at the browser level only (no page sessions), so the program drives
+ * the browser exactly as it would without the checks watching.
+ */
+async function recordJourney(): Promise<{ visited: string[]; stop: () => void }> {
+  const res = await fetch(`http://127.0.0.1:${CDP_PORT}/json/version`);
+  const { webSocketDebuggerUrl } = (await res.json()) as { webSocketDebuggerUrl: string };
+  const socket = new WebSocket(webSocketDebuggerUrl);
+  await new Promise((opened, failed) => {
+    socket.onopen = opened;
+    socket.onerror = failed;
+  });
+
+  const visited: string[] = [];
+  const lastUrl = new Map<string, string>();
+  socket.onmessage = (event) => {
+    const message = JSON.parse(String(event.data));
+    if (message.method !== 'Target.targetCreated' && message.method !== 'Target.targetInfoChanged') return;
+    const info = message.params.targetInfo as { targetId: string; type: string; url: string };
+    // Title changes fire this event too; only count a new address.
+    if (info.type !== 'page' || lastUrl.get(info.targetId) === info.url) return;
+    lastUrl.set(info.targetId, info.url);
+    const url = new URL(info.url);
+    // The site serves clean URLs (/flows/shop); compare without ".html".
+    if (url.protocol === 'https:' || url.protocol === 'http:') visited.push(url.pathname.replace(/\.html$/, ''));
+  };
+  socket.send(JSON.stringify({ id: 1, method: 'Target.setDiscoverTargets', params: { discover: true } }));
+  return { visited, stop: () => socket.close() };
 }
 
 // Selenium needs a real Chrome so its driver matches; CI sets CHROME_CHANNEL=chrome.

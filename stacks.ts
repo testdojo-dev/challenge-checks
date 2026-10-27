@@ -14,13 +14,13 @@ export type Stack = {
   /** Folder in the learner's repo. */
   dir: string;
   /** Installs dependencies and compiles. Not timed against the challenge. */
-  build: string;
+  build: (challenge: Challenge) => string;
   /** Runs the learner's program for a challenge. */
   run: (challenge: Challenge) => string;
 };
 
 export type Challenge = {
-  /** Java/C# class name, e.g. RegistrationRookie */
+  /** Java/C# class name (and C# file), e.g. RegistrationRookie */
   className: string;
   /** Python file, e.g. registration_rookie.py */
   pythonFile: string;
@@ -31,32 +31,33 @@ export type Challenge = {
 export const STACKS: Record<StackId, Stack> = {
   'selenium-java': {
     dir: 'selenium-java',
-    build: 'mvn -B -q compile',
+    build: () => 'mvn -B -q compile',
     run: (c) => `mvn -B -q exec:java -Dexec.mainClass=${c.className}`
   },
   'selenium-python': {
     dir: 'selenium-python',
-    build: 'python -m pip install -q -r requirements.txt',
+    build: () => 'python -m pip install -q -r requirements.txt',
     run: (c) => `python ${c.pythonFile}`
   },
   'selenium-csharp': {
     dir: 'selenium-csharp',
-    build: 'dotnet build -nologo -v q',
+    // Every challenge is a class with its own Main; pick the one to run.
+    build: (c) => `dotnet build -nologo -v q -p:StartupObject=${c.className}`,
     run: () => 'dotnet run --no-build'
   },
   'playwright-js': {
     dir: 'playwright-js',
-    build: 'npm install --no-audit --no-fund --loglevel=error',
+    build: () => 'npm install --no-audit --no-fund --loglevel=error',
     run: (c) => `node ${c.scriptName}.js`
   },
   'playwright-ts': {
     dir: 'playwright-ts',
-    build: 'npm install --no-audit --no-fund --loglevel=error',
+    build: () => 'npm install --no-audit --no-fund --loglevel=error',
     run: (c) => `npx tsx ${c.scriptName}.ts`
   },
   'playwright-java': {
     dir: 'playwright-java',
-    build: 'mvn -B -q compile',
+    build: () => 'mvn -B -q compile',
     run: (c) => `mvn -B -q exec:java -Dexec.mainClass=${c.className}`
   }
 };
