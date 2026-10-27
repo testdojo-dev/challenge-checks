@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { STACKS, type Challenge, type StackId } from './stacks';
 
-export const TESTDOJO_URL = process.env.TESTDOJO_URL || 'https://testdojo.testverse.workers.dev';
+export const TESTDOJO_URL = process.env.TESTDOJO_URL || 'https://testdojo.dev';
 const CDP_PORT = Number(process.env.TESTDOJO_CDP_PORT || 9222);
 const BUILD_TIMEOUT_MS = 5 * 60_000;
 const RUN_TIMEOUT_MS = 3 * 60_000;

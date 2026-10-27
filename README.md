@@ -1,6 +1,6 @@
 # TestDojo challenge checks
 
-The official checks for the [TestDojo automation challenges](https://testdojo.testverse.workers.dev/challenges).
+The official checks for the [TestDojo automation challenges](https://testdojo.dev/challenges).
 
 **You don't need to clone or change this repo.** When you press **Run test** on TestDojo, the
 workflow in your challenge repo downloads these checks fresh, so everyone is checked the same way.
