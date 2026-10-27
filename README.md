@@ -2,17 +2,25 @@
 
 The official checks for the [TestDojo automation challenges](https://testdojo.testverse.workers.dev/challenges).
 
-**You don't need to clone or change this repo.** Your challenge repo (created from
-[`challenges-template`](https://github.com/testdojo-dev/challenges-template)) downloads these
-checks fresh every time you run `npm test` and every time GitHub Actions runs. That keeps the
-assertions the same for everyone: your code does the work, and these checks decide whether it
-passed.
+**You don't need to clone or change this repo.** When you press **Run test** on TestDojo, the
+workflow in your challenge repo downloads these checks fresh, so everyone is checked the same way.
 
-You're welcome to read the checks to understand exactly what's verified.
+## How a check works
 
-| Check | Your solution file |
+1. The checker builds your project (Maven, pip, .NET or npm, depending on your language).
+2. It starts a Chrome browser.
+3. **Your program** connects to that browser and does the task. The "TestDojo setup" lines at the
+   top of your file handle the connection.
+4. When your program finishes, the checker inspects what it left in the browser and decides
+   whether you passed.
+
+Because the checker only looks at the result in the browser, the same checks work for Selenium
+and Playwright in every language.
+
+| Framework | Languages |
 |---|---|
-| `tests/challenge-01.spec.ts` | `solutions/challenge-01-registration.ts` |
-| `tests/challenge-02.spec.ts` | `solutions/challenge-02-first-purchase.ts` |
-| `tests/challenge-03.spec.ts` | `solutions/challenge-03-bargain-hunter.ts` |
-| `tests/challenge-04.spec.ts` | `solutions/challenge-04-locked-out.ts` |
+| Selenium | Java, Python, C# |
+| Playwright | JavaScript, TypeScript, Java |
+
+You're welcome to read the checks (`tests/`) to see exactly what's verified. How each language is
+built and run is in `stacks.ts`.
