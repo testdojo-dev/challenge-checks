@@ -7,6 +7,8 @@ import { STACKS, type Challenge, type StackId } from './stacks';
 
 export const TESTDOJO_URL = process.env.TESTDOJO_URL || 'https://testdojo.dev';
 const CDP_PORT = Number(process.env.TESTDOJO_CDP_PORT || 9222);
+/** Files learners upload in the Upload Ready challenge (see fixtures/). */
+export const FIXTURES_DIR = resolve('fixtures');
 const BUILD_TIMEOUT_MS = 5 * 60_000;
 const RUN_TIMEOUT_MS = 3 * 60_000;
 
@@ -33,6 +35,8 @@ function runCommand(command: string, cwd: string, timeoutMs: number): Promise<Co
         TESTDOJO_CDP: `http://127.0.0.1:${CDP_PORT}`,
         // ...and Selenium attaches to the same browser with this.
         TESTDOJO_DEBUGGER: `127.0.0.1:${CDP_PORT}`,
+        // Files for the upload challenge, shipped with the checks.
+        TESTDOJO_FIXTURES: FIXTURES_DIR,
         // Learners drive the browser the checks started; never download another.
         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
       }
@@ -142,6 +146,9 @@ async function recordJourney(): Promise<{ visited: string[]; stop: () => void }>
     // Title changes fire this event too; only count a new address.
     if (info.type !== 'page' || lastUrl.get(info.targetId) === info.url) return;
     lastUrl.set(info.targetId, info.url);
+    // A tab opened from a link starts with an empty address. Skip anything
+    // that isn't a full URL, so one odd target can't stop the recording.
+    if (!URL.canParse(info.url)) return;
     const url = new URL(info.url);
     // The site serves clean URLs (/flows/shop); compare without ".html".
     if (url.protocol === 'https:' || url.protocol === 'http:') visited.push(url.pathname.replace(/\.html$/, ''));
@@ -171,6 +178,9 @@ async function startChrome(): Promise<ChildProcess> {
       '--window-size=1280,900',
       '--no-first-run',
       '--no-default-browser-check',
+      // ChromeDriver and Playwright both switch the pop-up blocker off when they
+      // start Chrome; do the same, or "Open 3 Tabs" only gets one tab.
+      '--disable-popup-blocking',
       'about:blank'
     ],
     { stdio: 'ignore' }
